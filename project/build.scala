@@ -134,7 +134,7 @@ object build extends Build {
     id   = "xml",
     base = file("xml")
   ) settings (
-    publishableSettings: _*
+    publishableSettings ++ mimaDefaultSettings: _*
   ) settings (
     initialCommands in console := """
       import scala.reflect.runtime.universe._
@@ -144,17 +144,16 @@ object build extends Build {
       "org.scala-lang.modules" %% "scala-xml"     % "1.0.1",
       "org.scala-lang"         %  "scala-reflect" % "2.11.0-RC4"
     ),
-    crossVersion := CrossVersion.binary
-    // TODO: uncomment this when M1 is published
-    // previousArtifact := Some("org.scalamacros" %% "xml" % "1.0.0-M1"),
-    // Keys.`package` in Compile := {
-    //   if (findBinaryIssues.value.nonEmpty) throw new Exception("binary incompatible with " + previousArtifact.value)
-    //   (Keys.`package` in Compile).value
-    // },
-    // packagedArtifact in Compile in packageBin := {
-    //   if (findBinaryIssues.value.nonEmpty) throw new Exception("binary incompatible with " + previousArtifact.value)
-    //   (packagedArtifact in Compile in packageBin).value
-    // }
+    crossVersion := CrossVersion.binary,
+    previousArtifact := Some("org.scalamacros" % "xml_2.11.0-RC4" % "1.0.0-M1"),
+    Keys.`package` in Compile := {
+      if (findBinaryIssues.value.nonEmpty) throw new Exception("binary incompatible with " + previousArtifact.value)
+      (Keys.`package` in Compile).value
+    },
+    packagedArtifact in Compile in packageBin := {
+      if (findBinaryIssues.value.nonEmpty) throw new Exception("binary incompatible with " + previousArtifact.value)
+      (packagedArtifact in Compile in packageBin).value
+    }
   )
 
   lazy val tests = Project(
