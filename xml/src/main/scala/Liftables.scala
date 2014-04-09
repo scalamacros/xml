@@ -3,7 +3,9 @@ package org.scalamacros.xml
 import scala.reflect.api.Universe
 
 trait Liftables extends Nodes {
-  protected val __universe: Universe; import __universe._
+  protected val __universe: Universe
+  import __universe._
+  import __universe.internal.reificationSupport.{SyntacticBlock => SynBlock}
 
   implicit val liftComment = Liftable[xml.Comment] { c =>
     q"new _root_.scala.xml.Comment(${c.commentText})"
@@ -31,7 +33,7 @@ trait Liftables extends Nodes {
     q"new _root_.scala.xml.PCData(${pcd.data})"
   }
 
-  implicit val liftElem = Liftable[xml.Elem] { elem =>
+  implicit def liftElem(implicit outer: xml.NamespaceBinding = xml.TopScope) = Liftable[xml.Elem] { elem =>
     def liftMeta(meta: xml.MetaData): List[Tree] = meta match {
       case xml.Null =>
         q"var $$md: _root_.scala.xml.MetaData = _root_.scala.xml.Null" :: Nil
@@ -48,6 +50,8 @@ trait Liftables extends Nodes {
     val children =
       if (elem.child.isEmpty) q""
       else {
+        val outer = 'shadowed
+        implicit val current: xml.NamespaceBinding = elem.scope
         val additions = elem.child.map { node => q"$$buf &+ $node" }
         q"""{
           val $$buf = new _root_.scala.xml.NodeBuffer
@@ -56,11 +60,33 @@ trait Liftables extends Nodes {
         }: _*"""
       }
 
-    // TODO: find out true meaning and correct usage of $scope
-    q"""
+    def scoped(tree: Tree) = {
+      def distinct(ns: xml.NamespaceBinding): List[(String, String)] =
+        if (ns == null || ns.eq(outer) || ns.eq(xml.TopScope)) Nil
+        else {
+          val xml.NamespaceBinding(pre, uri, innerns) = ns
+          (pre, uri) :: distinct(innerns)
+        }
+
+      val bindings = distinct(elem.scope)
+      if (bindings.isEmpty) tree
+      else {
+        val q"..$stats" = tree
+        val scopes = bindings.reverse.map { case (pre, uri) =>
+          q"$$tmpscope = new _root_.scala.xml.NamespaceBinding($pre, $uri, $$tmpscope)"
+        }
+        q"""
+          var $$tmpscope: _root_.scala.xml.NamespaceBinding = $$scope
+          ..$scopes
+          ${SynBlock(q"val $$scope: _root_.scala.xml.NamespaceBinding = $$tmpscope" :: stats)}
+        """
+      }
+    }
+
+    scoped(q"""
       ..$metapre
       new _root_.scala.xml.Elem(${elem.prefix}, ${elem.label}, $metaval, $$scope, ${elem.minimizeEmpty}, ..$children)
-    """
+    """)
   }
 
   // TODO: what to do with Atom[T]?
@@ -78,8 +104,8 @@ trait Liftables extends Nodes {
     case unquote:   Unquote          => liftUnquote(unquote)
   }
 
-  implicit val liftNode: Liftable[xml.Node] = Liftable[xml.Node] {
-    case elem:  xml.Elem         => liftElem(elem)
+  implicit def liftNode(implicit outer: xml.NamespaceBinding = xml.TopScope): Liftable[xml.Node] = Liftable[xml.Node] {
+    case elem:  xml.Elem         => liftElem(outer)(elem)
     case snode: xml.SpecialNode  => liftSpecialNode(snode)
   }
 }

@@ -3,7 +3,9 @@ package org.scalamacros.xml
 import scala.reflect.api.Universe
 
 trait Unliftables extends Nodes {
-  protected val __universe: Universe; import __universe._, internal.reificationSupport.{SyntacticBlock => SynBlock}
+  protected val __universe: Universe
+  import __universe._
+  import __universe.internal.reificationSupport.{SyntacticBlock => SynBlock}
 
   implicit val UnliftComment = Unliftable[xml.Comment] {
     case q"new _root_.scala.xml.Comment(${text: String})" => xml.Comment(text)
@@ -39,14 +41,30 @@ trait Unliftables extends Nodes {
     }
   }
 
+  private def withRetreat[T](f: (() => Nothing) => T)(orElse: => T): T = {
+    class Stop extends Exception
+    try f(() => throw new Stop) catch {
+      case _: Stop => orElse
+    }
+  }
+
   private object Scoped {
     def unapply(tree: Tree)(implicit outer: xml.NamespaceBinding): Option[(xml.NamespaceBinding, Tree)] = tree match {
       case q"""
              var $$tmpscope: _root_.scala.xml.NamespaceBinding = $$scope
-             $$tmpscope = new _root_.scala.xml.NamespaceBinding(${Str(prefix)}, ${uri: String}, $$tmpscope)
+             ..$scopes
              ${SynBlock(q"val $$scope: _root_.scala.xml.NamespaceBinding = $$tmpscope" :: last)}
            """ =>
-        Some((xml.NamespaceBinding(prefix, uri, outer), q"..$last"))
+        withRetreat { retreat =>
+          Some((scopes.foldLeft[xml.NamespaceBinding](outer) {
+            case (ns, q"$$tmpscope = new _root_.scala.xml.NamespaceBinding(${Str(prefix)}, ${uri: String}, $$tmpscope)") =>
+              xml.NamespaceBinding(prefix, uri, ns)
+            case _ =>
+              retreat()
+          }, q"..$last"))
+        } {
+          Some((outer, tree))
+        }
       case _ =>
         Some((outer, tree))
     }
@@ -54,26 +72,27 @@ trait Unliftables extends Nodes {
 
   // extract a sequence of $md = FooAttribute(..., $md) as metadata
   private object Attributed {
-    private class InvalidShape extends Exception
     def unapply(tree: Tree)(implicit outer: xml.NamespaceBinding): Option[(xml.MetaData, Tree)] = tree match {
       case q"""
              var $$md: _root_.scala.xml.MetaData = _root_.scala.xml.Null
              ..$attributes
              $last
             """ =>
-        try Some((attributes.foldLeft[xml.MetaData](xml.Null) {
-          case (md, q"$$md = new _root_.scala.xml.UnprefixedAttribute(${key: String}, ${value: xml.Node}, $$md)") =>
-            new xml.UnprefixedAttribute(key, value, md)
-          case (md, q"$$md = new _root_.scala.xml.UnprefixedAttribute(${key: String}, $unquote, $$md)") =>
-            new xml.UnprefixedAttribute(key, Unquote(unquote), md)
-          case (md, q"$$md = new _root_.scala.xml.PrefixedAttribute(${pre: String}, ${key: String}, ${value: xml.Node}, $$md)") =>
-            new xml.PrefixedAttribute(pre, key, value, md)
-          case (md, q"$$md = new _root_.scala.xml.PrefixedAttribute(${pre: String}, ${key: String}, $unquote, $$md)") =>
-            new xml.PrefixedAttribute(pre, key, Unquote(unquote), md)
-          case _ =>
-            throw new InvalidShape
-        }, last)) catch {
-          case _: InvalidShape => Some((xml.Null, tree))
+        withRetreat { retreat =>
+          Some((attributes.foldLeft[xml.MetaData](xml.Null) {
+            case (md, q"$$md = new _root_.scala.xml.UnprefixedAttribute(${key: String}, ${value: xml.Node}, $$md)") =>
+              new xml.UnprefixedAttribute(key, value, md)
+            case (md, q"$$md = new _root_.scala.xml.UnprefixedAttribute(${key: String}, $expr, $$md)") =>
+              new xml.UnprefixedAttribute(key, Unquote(expr), md)
+            case (md, q"$$md = new _root_.scala.xml.PrefixedAttribute(${pre: String}, ${key: String}, ${value: xml.Node}, $$md)") =>
+              new xml.PrefixedAttribute(pre, key, value, md)
+            case (md, q"$$md = new _root_.scala.xml.PrefixedAttribute(${pre: String}, ${key: String}, $expr, $$md)") =>
+              new xml.PrefixedAttribute(pre, key, Unquote(expr), md)
+            case _ =>
+              retreat()
+          }, last))
+        } {
+          Some((xml.Null, tree))
         }
       case _ => Some((xml.Null, tree))
     }
