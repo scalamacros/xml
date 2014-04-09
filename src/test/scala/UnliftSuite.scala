@@ -72,4 +72,16 @@ class UnliftSuite extends FunSuite {
     val q"${elem: xml.Elem}" = q"<foo a:b={x + y}/>"
     val xml.PrefixedAttribute("a", "b", Expression(q"x + y"), xml.Null) = elem.attributes
   }
+
+  test("unlift namespaced elem") {
+    val q"${foo: xml.Elem}" = q"""<foo xmlns:pre="uri"/>"""
+    val xml.NamespaceBinding("pre", "uri", xml.TopScope) = foo.scope
+  }
+
+  test("unlift nested namespaced elem") {
+    val q"${foo: xml.Elem}" = q"""<foo xmlns:pre1="uri1"><bar xmlns:pre2="uri2"/></foo>"""
+    val xml.NamespaceBinding("pre1", "uri1", xml.TopScope) = foo.scope
+    val <foo>{bar: xml.Elem}</foo> = foo
+    val xml.NamespaceBinding("pre2", "uri2", xml.NamespaceBinding("pre1", "uri1", xml.TopScope)) = bar.scope
+  }
 }

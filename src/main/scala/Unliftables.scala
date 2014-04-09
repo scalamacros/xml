@@ -3,7 +3,7 @@ package org.scalamacros.xml
 import scala.reflect.api.Universe
 
 trait Unliftables extends Expressions {
-  protected val u: Universe; import u._
+  protected val u: Universe; import u._, internal.reificationSupport.{SyntacticBlock => SynBlock}
 
   implicit val UnliftComment = Unliftable[xml.Comment] {
     case q"new _root_.scala.xml.Comment(${text: String})" => xml.Comment(text)
@@ -39,29 +39,49 @@ trait Unliftables extends Expressions {
     }
   }
 
+  private object Scoped {
+    def unapply(tree: Tree)(implicit outer: xml.NamespaceBinding): Option[(xml.NamespaceBinding, Tree)] = tree match {
+      case q"""
+             var $$tmpscope: _root_.scala.xml.NamespaceBinding = $$scope
+             $$tmpscope = new _root_.scala.xml.NamespaceBinding(${Str(prefix)}, ${uri: String}, $$tmpscope)
+             ${SynBlock(q"val $$scope: _root_.scala.xml.NamespaceBinding = $$tmpscope" :: last)}
+           """ =>
+        Some((xml.NamespaceBinding(prefix, uri, outer), q"..$last"))
+      case _ =>
+        Some((outer, tree))
+    }
+  }
+
   // extract a sequence of $md = FooAttribute(..., $md) as metadata
-  private object Attributes {
+  private object Attributed {
     private class InvalidShape extends Exception
-    def unapply(attributes: List[Tree]): Option[xml.MetaData] =
-      try Some(attributes.foldLeft[xml.MetaData](xml.Null) {
-        case (md, q"$$md = new _root_.scala.xml.UnprefixedAttribute(${key: String}, ${value: xml.Node}, $$md)") =>
-          new xml.UnprefixedAttribute(key, value, md)
-        case (md, q"$$md = new _root_.scala.xml.UnprefixedAttribute(${key: String}, $expr, $$md)") =>
-          new xml.UnprefixedAttribute(key, Expression(expr), md)
-        case (md, q"$$md = new _root_.scala.xml.PrefixedAttribute(${pre: String}, ${key: String}, ${value: xml.Node}, $$md)") =>
-          new xml.PrefixedAttribute(pre, key, value, md)
-        case (md, q"$$md = new _root_.scala.xml.PrefixedAttribute(${pre: String}, ${key: String}, $expr, $$md)") =>
-          new xml.PrefixedAttribute(pre, key, Expression(expr), md)
-        case _ =>
-          throw new InvalidShape
-      }) catch {
-        case _: InvalidShape => None
-      }
+    def unapply(tree: Tree)(implicit outer: xml.NamespaceBinding): Option[(xml.MetaData, Tree)] = tree match {
+      case q"""
+             var $$md: _root_.scala.xml.MetaData = _root_.scala.xml.Null
+             ..$attributes
+             $last
+            """ =>
+        try Some((attributes.foldLeft[xml.MetaData](xml.Null) {
+          case (md, q"$$md = new _root_.scala.xml.UnprefixedAttribute(${key: String}, ${value: xml.Node}, $$md)") =>
+            new xml.UnprefixedAttribute(key, value, md)
+          case (md, q"$$md = new _root_.scala.xml.UnprefixedAttribute(${key: String}, $expr, $$md)") =>
+            new xml.UnprefixedAttribute(key, Expression(expr), md)
+          case (md, q"$$md = new _root_.scala.xml.PrefixedAttribute(${pre: String}, ${key: String}, ${value: xml.Node}, $$md)") =>
+            new xml.PrefixedAttribute(pre, key, value, md)
+          case (md, q"$$md = new _root_.scala.xml.PrefixedAttribute(${pre: String}, ${key: String}, $expr, $$md)") =>
+            new xml.PrefixedAttribute(pre, key, Expression(expr), md)
+          case _ =>
+            throw new InvalidShape
+        }, last)) catch {
+          case _: InvalidShape => Some((xml.Null, tree))
+        }
+      case _ => Some((xml.Null, tree))
+    }
   }
 
   // extract a seq of nodes from mutable nodebuffer-based construction
   private object Children {
-    def unapply(children: List[Tree]): Option[Seq[xml.Node]] = children match {
+    def unapply(children: List[Tree])(implicit outer: xml.NamespaceBinding): Option[Seq[xml.Node]] = children match {
       case Nil => Some(Nil)
       case q"{ val $$buf = new _root_.scala.xml.NodeBuffer; ..$additions; $$buf }: _*" :: Nil =>
         try Some(additions.map {
@@ -74,15 +94,28 @@ trait Unliftables extends Expressions {
     }
   }
 
-  implicit val UnliftElem: Unliftable[xml.Elem] = Unliftable[xml.Elem] {
-    case q"new _root_.scala.xml.Elem(${Str(prefix)}, ${Str(label)}, _root_.scala.xml.Null, $_, ${minimizeEmpty: Boolean}, ..${Children(children)})" =>
-      xml.Elem(prefix, label, _root_.scala.xml.Null, xml.TopScope, minimizeEmpty, children: _*)
-    case q"""
-           var $$md: _root_.scala.xml.MetaData = _root_.scala.xml.Null
-           ..${Attributes(attrs)}
-           new _root_.scala.xml.Elem(${Str(prefix)}, ${Str(label)}, $$md, $_, ${minimizeEmpty: Boolean}, ..${Children(children)})
-         """ =>
-      xml.Elem(prefix, label, attrs, xml.TopScope, minimizeEmpty, children: _*)
+  private def correspondsAttrRef(attrs: xml.MetaData, attrref: Tree): Boolean = (attrs, attrref) match {
+    case (xml.Null, q"_root_.scala.xml.Null")     => true
+    case (metadata, q"$$md") if metadata.nonEmpty => true
+    case _                                        => false
+  }
+
+  implicit def UnliftElem(implicit outer: xml.NamespaceBinding = xml.TopScope): Unliftable[xml.Elem] = new Unliftable[xml.Elem] {
+    def unapply(tree: Tree): Option[xml.Elem] = {
+      val Scoped(scope, inner) = tree;
+      {
+        val outer = 'shadowed
+        implicit val current = scope
+        inner match {
+          case Attributed(attrs,
+                 q"new _root_.scala.xml.Elem(${Str(prefix)}, ${Str(label)}, $attrref, $$scope, ${minimizeEmpty: Boolean}, ..${Children(children)})")
+               if correspondsAttrRef(attrs, attrref) =>
+            Some(xml.Elem(prefix, label, attrs, scope, minimizeEmpty, children: _*))
+          case _ =>
+            None
+        }
+      }
+    }
   }
 
   implicit val UnliftAtom = Unliftable[xml.Atom[String]] {
@@ -98,8 +131,8 @@ trait Unliftables extends Expressions {
     case UnliftEntityRef(entityref) => entityref
   }
 
-  implicit val UnliftNode: Unliftable[xml.Node] = Unliftable[xml.Node] {
-    case UnliftElem(elem)         => elem
+  implicit def UnliftNode(implicit outer: xml.NamespaceBinding = xml.TopScope): Unliftable[xml.Node] = Unliftable[xml.Node] {
+    case q"${elem: xml.Elem}"     => elem
     case UnliftSpecialNode(snode) => snode
   }
 }
