@@ -7,29 +7,39 @@ trait Unliftables extends Nodes {
   import __universe._
   import __universe.internal.reificationSupport.{SyntacticBlock => SynBlock}
 
+  object XML {
+    private val xmlpackage = rootMirror.staticPackage("scala.xml")
+    def unapply(tree: Tree) = tree match {
+      case q"_root_.scala.xml"                    => true
+      case tq"_root_.scala.xml"                   => true
+      case rt: RefTree if rt.symbol == xmlpackage => true
+      case _                                      => false
+    }
+  }
+
   implicit val UnliftComment = Unliftable[xml.Comment] {
-    case q"new _root_.scala.xml.Comment(${text: String})" => xml.Comment(text)
+    case q"new ${XML()}.Comment(${text: String})" => xml.Comment(text)
   }
 
   implicit val UnliftText = Unliftable[xml.Text] {
-    case q"new _root_.scala.xml.Text(${text: String})" => xml.Text(text)
+    case q"new ${XML()}.Text(${text: String})" => xml.Text(text)
   }
 
   implicit val UnliftEntityRef = Unliftable[xml.EntityRef] {
-    case q"new _root_.scala.xml.EntityRef(${name: String})" => xml.EntityRef(name)
+    case q"new ${XML()}.EntityRef(${name: String})" => xml.EntityRef(name)
   }
 
   implicit val UnliftProcInstr = Unliftable[xml.ProcInstr] {
-    case q"new _root_.scala.xml.ProcInstr(${target: String}, ${proctext: String})" =>
+    case q"new ${XML()}.ProcInstr(${target: String}, ${proctext: String})" =>
       xml.ProcInstr(target, proctext)
   }
 
   implicit val UnliftUnparsed = Unliftable[xml.Unparsed] {
-    case q"new _root_.scala.xml.Unparsed(${data: String})" => xml.Unparsed(data)
+    case q"new ${XML()}.Unparsed(${data: String})" => xml.Unparsed(data)
   }
 
   implicit val UnliftPCData = Unliftable[xml.PCData] {
-    case q"new _root_.scala.xml.PCData(${data: String})" => xml.PCData(data)
+    case q"new ${XML()}.PCData(${data: String})" => xml.PCData(data)
   }
 
   // extract string literal or null
@@ -48,16 +58,24 @@ trait Unliftables extends Nodes {
     }
   }
 
+  private object DDScope {
+    def unapply(tree: Tree) = tree match {
+      case q"$$scope"          => true
+      case q"${XML()}.$$scope" => true
+      case _                   => false
+    }
+  }
+
   private object Scoped {
     def unapply(tree: Tree)(implicit outer: xml.NamespaceBinding): Option[(xml.NamespaceBinding, Tree)] = tree match {
       case q"""
-             var $$tmpscope: _root_.scala.xml.NamespaceBinding = $$scope
+             var $$tmpscope: ${XML()}.NamespaceBinding = ${DDScope()}
              ..$scopes
-             ${SynBlock(q"val $$scope: _root_.scala.xml.NamespaceBinding = $$tmpscope" :: last)}
+             ${SynBlock(q"val $$scope: ${XML()}.NamespaceBinding = $$tmpscope" :: last)}
            """ =>
         withRetreat { retreat =>
           Some((scopes.foldLeft[xml.NamespaceBinding](outer) {
-            case (ns, q"$$tmpscope = new _root_.scala.xml.NamespaceBinding(${Str(prefix)}, ${uri: String}, $$tmpscope)") =>
+            case (ns, q"$$tmpscope = new ${XML()}.NamespaceBinding(${Str(prefix)}, ${uri: String}, $$tmpscope)") =>
               xml.NamespaceBinding(prefix, uri, ns)
             case _ =>
               retreat()
@@ -65,8 +83,8 @@ trait Unliftables extends Nodes {
         } {
           Some((outer, tree))
         }
-      case _ =>
-        Some((outer, tree))
+      case q"..$stats" =>
+        Some((outer, q"..$stats"))
     }
   }
 
@@ -74,19 +92,19 @@ trait Unliftables extends Nodes {
   private object Attributed {
     def unapply(tree: Tree)(implicit outer: xml.NamespaceBinding): Option[(xml.MetaData, Tree)] = tree match {
       case q"""
-             var $$md: _root_.scala.xml.MetaData = _root_.scala.xml.Null
+             var $$md: ${XML()}.MetaData = ${XML()}.Null
              ..$attributes
              $last
             """ =>
         withRetreat { retreat =>
           Some((attributes.foldLeft[xml.MetaData](xml.Null) {
-            case (md, q"$$md = new _root_.scala.xml.UnprefixedAttribute(${key: String}, ${value: xml.Node}, $$md)") =>
+            case (md, q"$$md = new ${XML()}.UnprefixedAttribute(${key: String}, ${value: xml.Node}, $$md)") =>
               new xml.UnprefixedAttribute(key, value, md)
-            case (md, q"$$md = new _root_.scala.xml.UnprefixedAttribute(${key: String}, $expr, $$md)") =>
+            case (md, q"$$md = new ${XML()}.UnprefixedAttribute(${key: String}, $expr, $$md)") =>
               new xml.UnprefixedAttribute(key, Unquote(expr), md)
-            case (md, q"$$md = new _root_.scala.xml.PrefixedAttribute(${pre: String}, ${key: String}, ${value: xml.Node}, $$md)") =>
+            case (md, q"$$md = new ${XML()}.PrefixedAttribute(${pre: String}, ${key: String}, ${value: xml.Node}, $$md)") =>
               new xml.PrefixedAttribute(pre, key, value, md)
-            case (md, q"$$md = new _root_.scala.xml.PrefixedAttribute(${pre: String}, ${key: String}, $expr, $$md)") =>
+            case (md, q"$$md = new ${XML()}.PrefixedAttribute(${pre: String}, ${key: String}, $expr, $$md)") =>
               new xml.PrefixedAttribute(pre, key, Unquote(expr), md)
             case _ =>
               retreat()
@@ -94,7 +112,8 @@ trait Unliftables extends Nodes {
         } {
           Some((xml.Null, tree))
         }
-      case _ => Some((xml.Null, tree))
+      case q"..$stats" =>
+        Some((xml.Null, q"..$stats"))
     }
   }
 
@@ -102,7 +121,7 @@ trait Unliftables extends Nodes {
   private object Children {
     def unapply(children: List[Tree])(implicit outer: xml.NamespaceBinding): Option[Seq[xml.Node]] = children match {
       case Nil => Some(Nil)
-      case q"{ val $$buf = new _root_.scala.xml.NodeBuffer; ..$additions; $$buf }: _*" :: Nil =>
+      case q"{ val $$buf = new ${XML()}.NodeBuffer; ..$additions; $$buf }: _*" :: Nil =>
         try Some(additions.map {
           case q"$$buf &+ ${node: xml.Node}" => node
           case q"$$buf &+ $unquote"          => Unquote(unquote)
@@ -114,9 +133,9 @@ trait Unliftables extends Nodes {
   }
 
   private def correspondsAttrRef(attrs: xml.MetaData, attrref: Tree): Boolean = (attrs, attrref) match {
-    case (xml.Null, q"_root_.scala.xml.Null")     => true
-    case (metadata, q"$$md") if metadata.nonEmpty => true
-    case _                                        => false
+    case (xml.Null, q"${XML()}.Null") => true
+    case (metadata, q"$$md") if metadata.nonEmpty                 => true
+    case _                                                        => false
   }
 
   implicit def UnliftElem(implicit outer: xml.NamespaceBinding = xml.TopScope): Unliftable[xml.Elem] = new Unliftable[xml.Elem] {
@@ -127,7 +146,7 @@ trait Unliftables extends Nodes {
         implicit val current = scope
         inner match {
           case Attributed(attrs,
-                 q"new _root_.scala.xml.Elem(${Str(prefix)}, ${Str(label)}, $attrref, $$scope, ${minimizeEmpty: Boolean}, ..${Children(children)})")
+                 q"new ${XML()}.Elem(${Str(prefix)}, ${Str(label)}, $attrref, ${DDScope()}, ${minimizeEmpty: Boolean}, ..${Children(children)})")
                if correspondsAttrRef(attrs, attrref) =>
             Some(xml.Elem(prefix, label, attrs, scope, minimizeEmpty, children: _*))
           case _ =>
