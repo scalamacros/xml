@@ -1,9 +1,9 @@
 xml
 ===
 
-lifting/unlifting support for xml literals
+Lifting/unlifting support for XML literals in quasiquotes
 
-known issues
+Known issues
 ============
 
-* xml.Atom[T] where T is not string is not fully supported 
+* `xml.Atom[T]` where `T` is not `String` is not fully supported
