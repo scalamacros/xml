@@ -78,10 +78,24 @@ class UnliftSuite extends FunSuite {
     val xml.NamespaceBinding("pre", "uri", xml.TopScope) = foo.scope
   }
 
+  test("unlift multi-namespaced elem") {
+    val q"${foo: xml.Elem}" = q"""<foo xmlns:a="uri1" xmlns:b="uri2"/>"""
+    val xml.NamespaceBinding("b", "uri2", xml.NamespaceBinding("a", "uri1", xml.TopScope)) = foo.scope
+  }
+
   test("unlift nested namespaced elem") {
     val q"${foo: xml.Elem}" = q"""<foo xmlns:pre1="uri1"><bar xmlns:pre2="uri2"/></foo>"""
     val xml.NamespaceBinding("pre1", "uri1", xml.TopScope) = foo.scope
     val <foo>{bar: xml.Elem}</foo> = foo
-    val xml.NamespaceBinding("pre2", "uri2", xml.NamespaceBinding("pre1", "uri1", xml.TopScope)) = bar.scope
+    val xml.NamespaceBinding("pre2", "uri2", ns @ xml.NamespaceBinding("pre1", "uri1", xml.TopScope)) = bar.scope
+    assert(foo.scope eq ns)
+  }
+
+  test("unlift shadowed namespaced elem") {
+    val q"${foo: xml.Elem}" = q"""<foo xmlns:pre="a"><bar xmlns:pre="b"/></foo>"""
+    val xml.NamespaceBinding("pre", "a", xml.TopScope) = foo.scope
+    val <foo>{bar: xml.Elem}</foo> = foo
+    val xml.NamespaceBinding("pre", "b", ns @ xml.NamespaceBinding("pre", "a", xml.TopScope)) = bar.scope
+    assert(ns eq foo.scope)
   }
 }

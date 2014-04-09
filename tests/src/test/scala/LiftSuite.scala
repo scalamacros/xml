@@ -58,4 +58,24 @@ class LiftSuite extends FunSuite {
   test("lift unquote within prefixed attribute") {
     assert(q"${<foo a:b={Unquote(q"x + y")}/>}" equalsStructure q"<foo a:b={x + y}/>")
   }
+
+  test("lift namespaced elem") {
+    assert(q"${<foo xmlns:pre="uri"/>}" equalsStructure q"""<foo xmlns:pre="uri"/>""")
+  }
+
+  test("lift multi-namespaced elem") {
+    assert(q"${<foo xmlns:a="uri1" xmlns:b="uri2"/>}" equalsStructure q"""<foo xmlns:a="uri1" xmlns:b="uri2"/>""")
+  }
+
+  test("lift nested namespaced elem") {
+    assert(q"${<foo xmlns:pre1="uri1"><bar xmlns:pre2="uri2"/></foo>}"
+           equalsStructure
+           q"""<foo xmlns:pre1="uri1"><bar xmlns:pre2="uri2"/></foo>""")
+  }
+
+  test("lift shadowed namespaced elem") {
+    assert(q"${<foo xmlns:pre="a"><bar xmlns:pre="b"/></foo>}"
+           equalsStructure
+           q"""<foo xmlns:pre="a"><bar xmlns:pre="b"/></foo>""")
+  }
 }
