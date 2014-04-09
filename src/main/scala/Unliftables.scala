@@ -2,8 +2,8 @@ package org.scalamacros.xml
 
 import scala.reflect.api.Universe
 
-trait Unliftables extends Expression {
-  val u: Universe; import u._
+trait Unliftables extends Expressions {
+  protected val u: Universe; import u._
 
   implicit val UnliftComment = Unliftable[xml.Comment] {
     case q"new _root_.scala.xml.Comment(${text: String})" => xml.Comment(text)
@@ -41,6 +41,7 @@ trait Unliftables extends Expression {
 
   // extract a sequence of $md = FooAttribute(..., $md) as metadata
   private object Attributes {
+    private class InvalidShape extends Exception
     def unapply(attributes: List[Tree]): Option[xml.MetaData] =
       try Some(attributes.foldLeft[xml.MetaData](xml.Null) {
         case (md, q"$$md = new _root_.scala.xml.UnprefixedAttribute(${key: String}, ${value: xml.Node}, $$md)") =>
@@ -51,8 +52,10 @@ trait Unliftables extends Expression {
           new xml.PrefixedAttribute(pre, key, value, md)
         case (md, q"$$md = new _root_.scala.xml.PrefixedAttribute(${pre: String}, ${key: String}, $expr, $$md)") =>
           new xml.PrefixedAttribute(pre, key, Expression(expr), md)
+        case _ =>
+          throw new InvalidShape
       }) catch {
-        case _: MatchError => None
+        case _: InvalidShape => None
       }
   }
 

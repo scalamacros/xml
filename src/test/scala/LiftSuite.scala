@@ -1,6 +1,6 @@
 import org.scalatest.FunSuite
 import reflect.runtime.universe._
-import org.scalamacros.xml.runtime._
+import org.scalamacros.xml.RuntimeLiftables._
 
 class LiftSuite extends FunSuite {
   test("lift comment") {
