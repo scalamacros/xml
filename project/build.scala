@@ -54,6 +54,18 @@ object build extends Build {
         <system>GitHub</system>
         <url>https://github.com/scalareflect/xml/issues</url>
       </issueManagement>
+      <developers>
+        <developer>
+          <id>densh</id>
+          <name>Denys Shabalin</name>
+          <url>http://den.sh</url>
+        </developer>
+        <developer>
+          <id>xeno-by</id>
+          <name>Eugene Burmako</name>
+          <url>http://xeno.by</url>
+        </developer>
+      </developers>
     )
   )
 
