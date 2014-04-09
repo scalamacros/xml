@@ -108,9 +108,20 @@ object build extends Build {
     }
   }
 
+  lazy val root = Project(
+    id = "root",
+    base = file("root")
+  ) settings (
+    sharedSettings : _*
+  ) settings (
+    console in Compile := (console in xml in Compile).value,
+    test in Test := (test in tests in Test).value,
+    packagedArtifacts := Map.empty
+  ) aggregate (xml, tests)
+
   lazy val xml = Project(
     id   = "xml",
-    base = file(".")
+    base = file("xml")
   ) settings (
     publishableSettings: _*
   ) settings (
@@ -120,8 +131,7 @@ object build extends Build {
     """,
     libraryDependencies ++= Seq(
       "org.scala-lang.modules" %% "scala-xml"     % "1.0.1",
-      "org.scala-lang"         %  "scala-reflect" % "2.11.0-RC4",
-      "org.scalatest"          %% "scalatest"     % "2.1.3"
+      "org.scala-lang"         %  "scala-reflect" % "2.11.0-RC4"
     ),
     crossVersion := CrossVersion.binary
     // TODO: uncomment this when M1 is published
@@ -135,4 +145,13 @@ object build extends Build {
     //   (packagedArtifact in Compile in packageBin).value
     // }
   )
+
+  lazy val tests = Project(
+    id   = "tests",
+    base = file("tests")
+  ) settings (
+    sharedSettings: _*
+  ) settings (
+    libraryDependencies += "org.scalatest" %% "scalatest" % "2.1.3" % "test"
+  ) dependsOn (xml)
 }
