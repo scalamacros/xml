@@ -5,7 +5,12 @@ import scala.reflect.api.Universe
 trait Liftables extends Nodes {
   protected val __universe: Universe
   import __universe._
-  import __universe.internal.reificationSupport.{SyntacticBlock => SynBlock}
+  import compat.reificationSupport.{SyntacticBlock => SynBlock}
+
+  private val compat: scala.quasiquotes.QuasiquoteCompat[__universe.type] = scala.quasiquotes.QuasiquoteCompat[__universe.type](__universe)
+  private def Liftable[T](f: T => Tree): Liftable[T] = {
+    new Liftable[T] { def apply(value: T): Tree = f(value) }
+  }
 
   implicit val liftComment = Liftable[xml.Comment] { c =>
     q"new _root_.scala.xml.Comment(${c.commentText})"

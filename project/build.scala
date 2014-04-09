@@ -6,7 +6,7 @@ import com.typesafe.tools.mima.plugin.MimaKeys._
 
 object build extends Build {
   lazy val sharedSettings = Defaults.defaultSettings ++ Seq(
-    scalaVersion := "2.11.0-RC4",
+    scalaVersion := "2.10.4",
     crossVersion := CrossVersion.full,
     version := "1.0.0-SNAPSHOT",
     organization := "org.scalamacros",
@@ -141,9 +141,10 @@ object build extends Build {
       import org.scalamacros.xml.RuntimeLiftables._
     """,
     libraryDependencies ++= Seq(
-      "org.scala-lang.modules" %% "scala-xml"     % "1.0.1",
-      "org.scala-lang"         %  "scala-reflect" % "2.11.0-RC4"
+      "org.scala-lang"         %  "scala-reflect" % "2.10.4"
     ),
+    addCompilerPlugin("org.scalamacros" % "paradise" % "2.0.0-SNAPSHOT" cross CrossVersion.full),
+    libraryDependencies += "org.scalamacros" %% "quasiquotes" % "2.0.0-SNAPSHOT",
     crossVersion := CrossVersion.binary
     // TODO: uncomment this when M1 is published
     // previousArtifact := Some("org.scalamacros" %% "xml" % "1.0.0-M1"),
@@ -163,6 +164,8 @@ object build extends Build {
   ) settings (
     sharedSettings: _*
   ) settings (
+    addCompilerPlugin("org.scalamacros" % "paradise" % "2.0.0-SNAPSHOT" cross CrossVersion.full),
+    libraryDependencies += "org.scalamacros" %% "quasiquotes" % "2.0.0-SNAPSHOT",
     libraryDependencies += "org.scalatest" %% "scalatest" % "2.1.3" % "test",
     packagedArtifacts := Map.empty
   ) dependsOn (xml)
