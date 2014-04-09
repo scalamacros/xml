@@ -47,15 +47,15 @@ class LiftSuite extends FunSuite {
     assert(q"${<foo a:a="a" b:b="b"/>}" equalsStructure q"""<foo a:a="a" b:b="b"/>""")
   }
 
-  test("lift expression within elem") {
-    assert(q"${<foo>{Expression(q"x + y")}</foo>}" equalsStructure q"<foo>{x + y}</foo>")
+  test("lift unquote within elem") {
+    assert(q"${<foo>{Unquote(q"x + y")}</foo>}" equalsStructure q"<foo>{x + y}</foo>")
   }
 
-  test("lift expression within unprefixed attribute") {
-    assert(q"${<foo a={Expression(q"x + y")}/>}" equalsStructure q"<foo a={x + y}/>")
+  test("lift unquote within unprefixed attribute") {
+    assert(q"${<foo a={Unquote(q"x + y")}/>}" equalsStructure q"<foo a={x + y}/>")
   }
 
-  test("lift expression within prefixed attribute") {
-    assert(q"${<foo a:b={Expression(q"x + y")}/>}" equalsStructure q"<foo a:b={x + y}/>")
+  test("lift unquote within prefixed attribute") {
+    assert(q"${<foo a:b={Unquote(q"x + y")}/>}" equalsStructure q"<foo a:b={x + y}/>")
   }
 }

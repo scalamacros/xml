@@ -2,8 +2,8 @@ package org.scalamacros.xml
 
 import scala.reflect.api.Universe
 
-trait Liftables extends Expressions {
-  protected val u: Universe; import u._
+trait Liftables extends Nodes {
+  protected val __universe: Universe; import __universe._
 
   implicit val liftComment = Liftable[xml.Comment] { c =>
     q"new _root_.scala.xml.Comment(${c.commentText})"
@@ -17,7 +17,7 @@ trait Liftables extends Expressions {
     q"new _root_.scala.xml.EntityRef(${er.entityName})"
   }
 
-  implicit val liftExpression = Liftable[Expression] { _.tree }
+  implicit val liftUnquote = Liftable[Unquote] { _.tree }
 
   implicit val liftProcInstr = Liftable[xml.ProcInstr] { pi =>
     q"new _root_.scala.xml.ProcInstr(${pi.target}, ${pi.proctext})"
@@ -75,7 +75,7 @@ trait Liftables extends Expressions {
     case comment:   xml.Comment      => liftComment(comment)
     case procinstr: xml.ProcInstr    => liftProcInstr(procinstr)
     case entityref: xml.EntityRef    => liftEntityRef(entityref)
-    case expr:      Expression       => liftExpression(expr)
+    case unquote:   Unquote          => liftUnquote(unquote)
   }
 
   implicit val liftNode: Liftable[xml.Node] = Liftable[xml.Node] {
