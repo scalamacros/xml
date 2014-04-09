@@ -3,7 +3,7 @@ package org.scalamacros.xml
 import scala.reflect.api.Universe
 
 trait Unliftables extends Nodes {
-  protected val u: Universe; import u._, internal.reificationSupport.{SyntacticBlock => SynBlock}
+  protected val __universe: Universe; import __universe._, internal.reificationSupport.{SyntacticBlock => SynBlock}
 
   implicit val UnliftComment = Unliftable[xml.Comment] {
     case q"new _root_.scala.xml.Comment(${text: String})" => xml.Comment(text)

@@ -3,7 +3,7 @@ package org.scalamacros.xml
 import scala.reflect.api.Universe
 
 trait Liftables extends Nodes {
-  protected val u: Universe; import u._
+  protected val __universe: Universe; import __universe._
 
   implicit val liftComment = Liftable[xml.Comment] { c =>
     q"new _root_.scala.xml.Comment(${c.commentText})"
