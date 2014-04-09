@@ -58,19 +58,19 @@ class UnliftSuite extends FunSuite {
     val xml.PrefixedAttribute("a", "b", xml.Text("c"), xml.Null) = elem.attributes
   }
 
-  test("unlift expression within elem") {
+  test("unlift unquote within elem") {
     val q"${elem: xml.Elem}" = q"<foo>{x + y}</foo>"
-    val <foo>{Expression(q"x + y")}</foo> = elem
+    val <foo>{Unquote(q"x + y")}</foo> = elem
   }
 
-  test("unlift expression within unprefixed attribute") {
+  test("unlift unquote within unprefixed attribute") {
     val q"${elem: xml.Elem}" = q"<foo a={x + y}/>"
-    val xml.UnprefixedAttribute("a", Expression(q"x + y"), xml.Null) = elem.attributes
+    val xml.UnprefixedAttribute("a", Unquote(q"x + y"), xml.Null) = elem.attributes
   }
 
-  test("unlift expression within prefixed attribute") {
+  test("unlift unquote within prefixed attribute") {
     val q"${elem: xml.Elem}" = q"<foo a:b={x + y}/>"
-    val xml.PrefixedAttribute("a", "b", Expression(q"x + y"), xml.Null) = elem.attributes
+    val xml.PrefixedAttribute("a", "b", Unquote(q"x + y"), xml.Null) = elem.attributes
   }
 
   test("unlift namespaced elem") {

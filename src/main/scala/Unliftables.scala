@@ -2,7 +2,7 @@ package org.scalamacros.xml
 
 import scala.reflect.api.Universe
 
-trait Unliftables extends Expressions {
+trait Unliftables extends Nodes {
   protected val u: Universe; import u._, internal.reificationSupport.{SyntacticBlock => SynBlock}
 
   implicit val UnliftComment = Unliftable[xml.Comment] {
@@ -64,12 +64,12 @@ trait Unliftables extends Expressions {
         try Some((attributes.foldLeft[xml.MetaData](xml.Null) {
           case (md, q"$$md = new _root_.scala.xml.UnprefixedAttribute(${key: String}, ${value: xml.Node}, $$md)") =>
             new xml.UnprefixedAttribute(key, value, md)
-          case (md, q"$$md = new _root_.scala.xml.UnprefixedAttribute(${key: String}, $expr, $$md)") =>
-            new xml.UnprefixedAttribute(key, Expression(expr), md)
+          case (md, q"$$md = new _root_.scala.xml.UnprefixedAttribute(${key: String}, $unquote, $$md)") =>
+            new xml.UnprefixedAttribute(key, Unquote(unquote), md)
           case (md, q"$$md = new _root_.scala.xml.PrefixedAttribute(${pre: String}, ${key: String}, ${value: xml.Node}, $$md)") =>
             new xml.PrefixedAttribute(pre, key, value, md)
-          case (md, q"$$md = new _root_.scala.xml.PrefixedAttribute(${pre: String}, ${key: String}, $expr, $$md)") =>
-            new xml.PrefixedAttribute(pre, key, Expression(expr), md)
+          case (md, q"$$md = new _root_.scala.xml.PrefixedAttribute(${pre: String}, ${key: String}, $unquote, $$md)") =>
+            new xml.PrefixedAttribute(pre, key, Unquote(unquote), md)
           case _ =>
             throw new InvalidShape
         }, last)) catch {
@@ -86,7 +86,7 @@ trait Unliftables extends Expressions {
       case q"{ val $$buf = new _root_.scala.xml.NodeBuffer; ..$additions; $$buf }: _*" :: Nil =>
         try Some(additions.map {
           case q"$$buf &+ ${node: xml.Node}" => node
-          case q"$$buf &+ $expr"             => Expression(expr)
+          case q"$$buf &+ $unquote"          => Unquote(unquote)
         }) catch {
           case _: MatchError => None
         }
