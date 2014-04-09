@@ -5,7 +5,12 @@ import scala.reflect.api.Universe
 trait Unliftables extends Nodes {
   protected val __universe: Universe
   import __universe._
-  import __universe.internal.reificationSupport.{SyntacticBlock => SynBlock}
+  import compat.reificationSupport.{SyntacticBlock => SynBlock}
+
+  private val compat: scala.quasiquotes.QuasiquoteCompat[__universe.type] = scala.quasiquotes.QuasiquoteCompat[__universe.type](__universe)
+  private def Unliftable[T](pf: PartialFunction[Tree, T]): Unliftable[T] = new Unliftable[T] {
+    def unapply(value: Tree): Option[T] = pf.lift(value)
+  }
 
   object XML {
     private val xmlpackage = rootMirror.staticPackage("scala.xml")
